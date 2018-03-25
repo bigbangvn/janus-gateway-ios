@@ -32,7 +32,7 @@ int height = 0;
     _localView = [[RTCCameraPreviewView alloc] initWithFrame:CGRectMake(0, 0, 480, 360)];
     [self.view addSubview:_localView];
 
-    NSURL *url = [[NSURL alloc] initWithString:@"ws://127.0.0.1:8088"];
+    NSURL *url = [[NSURL alloc] initWithString:@"ws://graphtable.com:18188"];
     websocket = [[WebSocketChannel alloc] initWithURL: url];
     websocket.delegate = self;
 
@@ -62,17 +62,22 @@ int height = 0;
     return constraints;
 }
 
-- (RTCIceServer *)defaultSTUNServer {
-    NSArray *array = [NSArray arrayWithObject:@"turn:12.205.13.145:xx"];
+- (RTCIceServer *)myTurnServer {
+    NSArray *array = @[@"turn:graphtable.com:13478?transport=udp",
+                       @"turn:graphtable.com:13478?transport=tcp"];
     return [[RTCIceServer alloc] initWithURLStrings:array
-                                           username:@"ling"
-                                         credential:@"ling1234"];
+                                           username:@"test"
+                                         credential:@"test"];
+}
+
+- (RTCIceServer *)defaultSTUNServer {
+    return [[RTCIceServer alloc] initWithURLStrings:@[@"stun:stun.l.google.com:19302"]]; //default google server
 }
 
 - (RTCPeerConnection *)createPeerConnection {
     RTCMediaConstraints *constraints = [self defaultPeerConnectionConstraints];
     RTCConfiguration *config = [[RTCConfiguration alloc] init];
-    NSMutableArray *iceServers = [NSMutableArray arrayWithObject:[self defaultSTUNServer]];
+    NSArray *iceServers = @[[self defaultSTUNServer], [self myTurnServer]];
     config.iceServers = iceServers;
     config.iceTransportPolicy = RTCIceTransportPolicyRelay;
     RTCPeerConnection *peerConnection = [_factory peerConnectionWithConfiguration:config
