@@ -11,6 +11,7 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 
 @interface ViewController ()
 @property (strong, nonatomic) RTCCameraPreviewView *localView;
+@property (strong, nonatomic) UIView *remoteView;
 
 @end
 
@@ -40,6 +41,17 @@ int height = 0;
     _factory = [[RTCPeerConnectionFactory alloc] init];
     localTrack = [self createLocalVideoTrack];
     localAudioTrack = [self createLocalAudioTrack];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    
+    CGRect frame = UIScreen.mainScreen.bounds;
+    frame.size.height /= 2;
+    self.localView.frame = frame;
+    
+    frame.origin.y += frame.size.height;
+    self.remoteView.frame = frame;
 }
 
 - (RTCEAGLVideoView *)createRemoteView {
@@ -164,12 +176,12 @@ int height = 0;
 
     NSString *widthConstraint = @"480";
     NSString *heightConstraint = @"360";
-    NSString *frameRateConstrait = @"20";
+    NSString *frameRateConstrait = @"10";
     if (widthConstraint && heightConstraint) {
         mediaConstraintsDictionary = @{
-                                       kRTCMediaConstraintsMinWidth : widthConstraint,
+                                       kRTCMediaConstraintsMinWidth : @"48",
                                        kRTCMediaConstraintsMaxWidth : widthConstraint,
-                                       kRTCMediaConstraintsMinHeight : heightConstraint,
+                                       kRTCMediaConstraintsMinHeight : @"36",
                                        kRTCMediaConstraintsMaxHeight : heightConstraint,
                                        kRTCMediaConstraintsMaxFrameRate: frameRateConstrait,
                                        };
@@ -205,6 +217,7 @@ int height = 0;
             [remoteVideoTrack addRenderer:remoteView];
             janusConnection.videoTrack = remoteVideoTrack;
             janusConnection.videoView = remoteView;
+            self.remoteView = remoteView;
         }
     });
 }
