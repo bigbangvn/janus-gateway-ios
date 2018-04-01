@@ -4,38 +4,44 @@
 #import "WebRTC/WebRTC.h"
 #import "RTCSessionDescription+JSON.h"
 #import "JanusConnection.h"
+#import "TBMacros.h"
 
+#define kJanusServer    @"ws://graphtable.com:18188"
+#define kTURNServerUDP  @"turn:graphtable.com:13478?transport=udp"
+#define kTURNServerTCP  @"turn:graphtable.com:13478?transport=tcp"
+#define kTURNUsername   @"test"
+#define kTURNPassword   @"test"
+#define kSTUNServer     @"stun:stun.l.google.com:19302"
+
+//What does it mean !?? Maybe just unique name
 static NSString * const kARDMediaStreamId = @"ARDAMS";
 static NSString * const kARDAudioTrackId = @"ARDAMSa0";
 static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 
 @interface ViewController ()
-@property (strong, nonatomic) RTCCameraPreviewView *localView;
-@property (strong, nonatomic) UIView *remoteView;
-
+{
+    NSMutableDictionary *peerConnectionDict; //Careful, race condition can happen
+    RTCPeerConnection *publisherPeerConnection;
+    RTCVideoTrack *localTrack;
+    RTCAudioTrack *localAudioTrack;
+}
+@property(nonatomic, strong) WebSocketChannel *websocket;
+@property(nonatomic, strong) RTCPeerConnectionFactory *factory;
+@property(nonatomic, strong) RTCCameraPreviewView *localView;
+@property(nonatomic, strong) UIView *remoteView;
 @end
 
 @implementation ViewController
-WebSocketChannel *websocket;
-NSMutableDictionary *peerConnectionDict;
-RTCPeerConnection *publisherPeerConnection;
-RTCVideoTrack *localTrack;
-RTCAudioTrack *localAudioTrack;
-
-int height = 0;
-
-@synthesize factory = _factory;
-@synthesize localView = _localView;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    _localView = [[RTCCameraPreviewView alloc] initWithFrame:CGRectMake(0, 0, 480, 360)];
+    _localView = [[RTCCameraPreviewView alloc] initWithFrame:CGRectZero];
     [self.view addSubview:_localView];
 
-    NSURL *url = [[NSURL alloc] initWithString:@"ws://graphtable.com:18188"];
-    websocket = [[WebSocketChannel alloc] initWithURL: url];
-    websocket.delegate = self;
+    NSURL *url = [[NSURL alloc] initWithString:kJanusServer];
+    self.websocket = [[WebSocketChannel alloc] initWithURL: url];
+    self.websocket.delegate = self;
 
     peerConnectionDict = [NSMutableDictionary dictionary];
     _factory = [[RTCPeerConnectionFactory alloc] init];
@@ -55,10 +61,10 @@ int height = 0;
 }
 
 - (RTCEAGLVideoView *)createRemoteView {
-    height += 360;
-    RTCEAGLVideoView *remoteView = [[RTCEAGLVideoView alloc] initWithFrame:CGRectMake(0, height, 480, 360)];
+    RTCEAGLVideoView *remoteView = [[RTCEAGLVideoView alloc] initWithFrame:CGRectZero];
     remoteView.delegate = self;
     [self.view addSubview:remoteView];
+    [self.view setNeedsLayout];
     return remoteView;
 }
 
@@ -75,15 +81,15 @@ int height = 0;
 }
 
 - (RTCIceServer *)myTurnServer {
-    NSArray *array = @[@"turn:graphtable.com:13478?transport=udp",
-                       @"turn:graphtable.com:13478?transport=tcp"];
+    NSArray *array = @[kTURNServerUDP,
+                       kTURNServerTCP];
     return [[RTCIceServer alloc] initWithURLStrings:array
-                                           username:@"test"
-                                         credential:@"test"];
+                                           username:kTURNUsername
+                                         credential:kTURNPassword];
 }
 
 - (RTCIceServer *)defaultSTUNServer {
-    return [[RTCIceServer alloc] initWithURLStrings:@[@"stun:stun.l.google.com:19302"]]; //default google server
+    return [[RTCIceServer alloc] initWithURLStrings:@[kSTUNServer]];
 }
 
 - (RTCPeerConnection *)createPeerConnection {
@@ -105,11 +111,13 @@ int height = 0;
     jc.handleId = handleId;
     peerConnectionDict[handleId] = jc;
 
+    weakify(self);
     [publisherPeerConnection offerForConstraints:[self defaultOfferConstraints]
                        completionHandler:^(RTCSessionDescription *sdp,
                                            NSError *error) {
+                           strongify(self);
                            [publisherPeerConnection setLocalDescription:sdp completionHandler:^(NSError * _Nullable error) {
-                               [websocket publisherCreateOffer: handleId sdp:sdp];
+                               [self.websocket publisherCreateOffer: handleId sdp:sdp];
                            }];
                        }];
 }
@@ -171,22 +179,17 @@ int height = 0;
     return sender;
 }
 
-- (nullable NSDictionary *)currentMediaConstraint {
-    NSDictionary *mediaConstraintsDictionary = nil;
-
+- (NSDictionary *)currentMediaConstraint {
     NSString *widthConstraint = @"480";
     NSString *heightConstraint = @"360";
     NSString *frameRateConstrait = @"10";
-    if (widthConstraint && heightConstraint) {
-        mediaConstraintsDictionary = @{
-                                       kRTCMediaConstraintsMinWidth : @"48",
-                                       kRTCMediaConstraintsMaxWidth : widthConstraint,
-                                       kRTCMediaConstraintsMinHeight : @"36",
-                                       kRTCMediaConstraintsMaxHeight : heightConstraint,
-                                       kRTCMediaConstraintsMaxFrameRate: frameRateConstrait,
-                                       };
-    }
-    return mediaConstraintsDictionary;
+    return @{
+           kRTCMediaConstraintsMinWidth : @"100",
+           kRTCMediaConstraintsMaxWidth : widthConstraint,
+           kRTCMediaConstraintsMinHeight : @"100",
+           kRTCMediaConstraintsMaxHeight : heightConstraint,
+           kRTCMediaConstraintsMaxFrameRate: frameRateConstrait,
+           };
 }
 
 - (void)videoView:(RTCEAGLVideoView *)videoView didChangeVideoSize:(CGSize)size {
@@ -201,8 +204,7 @@ int height = 0;
     NSLog(@"=========didAddStream");
     JanusConnection *janusConnection;
 
-    for (NSNumber *key in peerConnectionDict) {
-        JanusConnection *jc = peerConnectionDict[key];
+    for (JanusConnection *jc in peerConnectionDict.allValues) {
         if (peerConnection == jc.connection) {
             janusConnection = jc;
             break;
@@ -238,17 +240,16 @@ int height = 0;
     NSLog(@"=========didGenerateIceCandidate==%@", candidate.sdp);
 
     NSNumber *handleId;
-    for (NSNumber *key in peerConnectionDict) {
-        JanusConnection *jc = peerConnectionDict[key];
+    for (JanusConnection *jc in peerConnectionDict.allValues) {
         if (peerConnection == jc.connection) {
             handleId = jc.handleId;
             break;
         }
     }
     if (candidate != nil) {
-        [websocket trickleCandidate:handleId candidate:candidate];
+        [self.websocket trickleCandidate:handleId candidate:candidate];
     } else {
-        [websocket trickleCandidateComplete: handleId];
+        [self.websocket trickleCandidateComplete: handleId];
     }
 }
 
@@ -302,7 +303,7 @@ int height = 0;
     [peerConnection answerForConstraints:constraints completionHandler:^(RTCSessionDescription * _Nullable sdp, NSError * _Nullable error) {
         [peerConnection setLocalDescription:sdp completionHandler:^(NSError * _Nullable error) {
         }];
-        [websocket subscriberCreateAnswer:handleId sdp:sdp];
+        [self.websocket subscriberCreateAnswer:handleId sdp:sdp];
     }];
 
 }

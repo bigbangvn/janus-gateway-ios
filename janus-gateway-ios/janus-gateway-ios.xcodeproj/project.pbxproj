@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07B31F38206AB4ED00F7E862 /* LiveCallViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 07B31F37206AB4ED00F7E862 /* LiveCallViewController.m */; };
 		1B68AE20884D179BD06D1F20 /* libPods-janus-gateway-ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DBB9CB144A52379C61B832DF /* libPods-janus-gateway-ios.a */; };
 		27078DA41E1BC8D0002199B5 /* WebSocketChannel.m in Sources */ = {isa = PBXBuildFile; fileRef = 27078DA21E1BC8D0002199B5 /* WebSocketChannel.m */; };
 		27078DA81E1C0D0C002199B5 /* RTCSessionDescription+JSON.m in Sources */ = {isa = PBXBuildFile; fileRef = 27078DA71E1C0D0C002199B5 /* RTCSessionDescription+JSON.m */; };
@@ -39,6 +40,9 @@
 
 /* Begin PBXFileReference section */
 		0113F09BBDF970E793971334 /* Pods-Janus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Janus.release.xcconfig"; path = "Pods/Target Support Files/Pods-Janus/Pods-Janus.release.xcconfig"; sourceTree = "<group>"; };
+		07B31F34206AADDF00F7E862 /* TBMacros.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TBMacros.h; sourceTree = "<group>"; };
+		07B31F36206AB4ED00F7E862 /* LiveCallViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LiveCallViewController.h; sourceTree = "<group>"; };
+		07B31F37206AB4ED00F7E862 /* LiveCallViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveCallViewController.m; sourceTree = "<group>"; };
 		0F29BBA87E5964CEE3CB5EC7 /* Pods-janus-gateway-ios.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-janus-gateway-ios.debug.xcconfig"; path = "Pods/Target Support Files/Pods-janus-gateway-ios/Pods-janus-gateway-ios.debug.xcconfig"; sourceTree = "<group>"; };
 		27078DA21E1BC8D0002199B5 /* WebSocketChannel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WebSocketChannel.m; sourceTree = "<group>"; };
 		27078DA31E1BC8D0002199B5 /* WebSocketChannel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebSocketChannel.h; sourceTree = "<group>"; };
@@ -98,6 +102,15 @@
 			name = Pods;
 			sourceTree = "<group>";
 		};
+		07B31F35206AB4D700F7E862 /* LiveCall */ = {
+			isa = PBXGroup;
+			children = (
+				07B31F36206AB4ED00F7E862 /* LiveCallViewController.h */,
+				07B31F37206AB4ED00F7E862 /* LiveCallViewController.m */,
+			);
+			name = LiveCall;
+			sourceTree = "<group>";
+		};
 		279F89871E1BBECE00B651E7 = {
 			isa = PBXGroup;
 			children = (
@@ -119,6 +132,8 @@
 		279F89921E1BBECE00B651E7 /* Janus */ = {
 			isa = PBXGroup;
 			children = (
+				07B31F35206AB4D700F7E862 /* LiveCall */,
+				07B31F34206AADDF00F7E862 /* TBMacros.h */,
 				27078DC01E1E3E2C002199B5 /* JanusConnection.h */,
 				27078DC11E1E3E3E002199B5 /* JanusConnection.m */,
 				27078DB71E1E10C2002199B5 /* JanusHandle.h */,
@@ -303,6 +318,7 @@
 				27078DBF1E1E1932002199B5 /* JanusTransaction.m in Sources */,
 				27078DA81E1C0D0C002199B5 /* RTCSessionDescription+JSON.m in Sources */,
 				27078DA41E1BC8D0002199B5 /* WebSocketChannel.m in Sources */,
+				07B31F38206AB4ED00F7E862 /* LiveCallViewController.m in Sources */,
 				27078DB91E1E10DB002199B5 /* JanusHandle.m in Sources */,
 				27078DC21E1E3E3E002199B5 /* JanusConnection.m in Sources */,
 				279F89981E1BBECE00B651E7 /* AppDelegate.m in Sources */,

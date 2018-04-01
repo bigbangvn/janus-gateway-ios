@@ -18,8 +18,8 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
-    RTCInitializeSSL();
-    RTCSetupInternalTracer();
+    //RTCInitializeSSL();
+    //RTCSetupInternalTracer();
 //    RTCSetMinDebugLogLevel(RTCLoggingSeverityVerbose);
 
     return YES;

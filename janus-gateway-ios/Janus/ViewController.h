@@ -12,9 +12,6 @@
 
 
 @interface ViewController : UIViewController<RTCPeerConnectionDelegate, WebSocketDelegate, RTCEAGLVideoViewDelegate>
-
-@property(nonatomic, strong) RTCPeerConnectionFactory *factory;
-
 @end
 
 
