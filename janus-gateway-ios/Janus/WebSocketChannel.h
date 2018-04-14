@@ -30,4 +30,7 @@ typedef NS_ENUM(NSInteger, ARDSignalingChannelState) {
 
 - (void)trickleCandidateComplete:(NSNumber *)handleId;
 
+//BangNT
+- (void)stopTimer;
+
 @end

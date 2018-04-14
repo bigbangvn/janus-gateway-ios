@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07552765207A7D810017EA10 /* HomeViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 07552764207A7D810017EA10 /* HomeViewController.m */; };
 		07B31F38206AB4ED00F7E862 /* LiveCallViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 07B31F37206AB4ED00F7E862 /* LiveCallViewController.m */; };
 		1B68AE20884D179BD06D1F20 /* libPods-janus-gateway-ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DBB9CB144A52379C61B832DF /* libPods-janus-gateway-ios.a */; };
 		27078DA41E1BC8D0002199B5 /* WebSocketChannel.m in Sources */ = {isa = PBXBuildFile; fileRef = 27078DA21E1BC8D0002199B5 /* WebSocketChannel.m */; };
@@ -40,6 +41,8 @@
 
 /* Begin PBXFileReference section */
 		0113F09BBDF970E793971334 /* Pods-Janus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Janus.release.xcconfig"; path = "Pods/Target Support Files/Pods-Janus/Pods-Janus.release.xcconfig"; sourceTree = "<group>"; };
+		07552763207A7D810017EA10 /* HomeViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HomeViewController.h; sourceTree = "<group>"; };
+		07552764207A7D810017EA10 /* HomeViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HomeViewController.m; sourceTree = "<group>"; };
 		07B31F34206AADDF00F7E862 /* TBMacros.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TBMacros.h; sourceTree = "<group>"; };
 		07B31F36206AB4ED00F7E862 /* LiveCallViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LiveCallViewController.h; sourceTree = "<group>"; };
 		07B31F37206AB4ED00F7E862 /* LiveCallViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LiveCallViewController.m; sourceTree = "<group>"; };
@@ -149,6 +152,8 @@
 				279F89991E1BBECE00B651E7 /* ViewController.h */,
 				279F899A1E1BBECE00B651E7 /* ViewController.m */,
 				279F899C1E1BBECE00B651E7 /* Main.storyboard */,
+				07552763207A7D810017EA10 /* HomeViewController.h */,
+				07552764207A7D810017EA10 /* HomeViewController.m */,
 				279F899F1E1BBECE00B651E7 /* Assets.xcassets */,
 				279F89A11E1BBECE00B651E7 /* LaunchScreen.storyboard */,
 				279F89A41E1BBECE00B651E7 /* Info.plist */,
@@ -317,6 +322,7 @@
 				279F899B1E1BBECE00B651E7 /* ViewController.m in Sources */,
 				27078DBF1E1E1932002199B5 /* JanusTransaction.m in Sources */,
 				27078DA81E1C0D0C002199B5 /* RTCSessionDescription+JSON.m in Sources */,
+				07552765207A7D810017EA10 /* HomeViewController.m in Sources */,
 				27078DA41E1BC8D0002199B5 /* WebSocketChannel.m in Sources */,
 				07B31F38206AB4ED00F7E862 /* LiveCallViewController.m in Sources */,
 				27078DB91E1E10DB002199B5 /* JanusHandle.m in Sources */,

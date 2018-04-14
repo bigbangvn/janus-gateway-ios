@@ -5,7 +5,7 @@
 #import "SRWebSocket.h"
 #import "JanusTransaction.h"
 #import "JanusHandle.h"
-
+#import "TBMacros.h"
 
 static NSString const *kJanus = @"janus";
 static NSString const *kJanusData = @"data";
@@ -13,18 +13,16 @@ static NSString const *kJanusData = @"data";
 
 @interface WebSocketChannel () <SRWebSocketDelegate>
 @property(nonatomic, readonly) ARDSignalingChannelState state;
-
+@property(nonatomic) NSNumber *sessionId;
+@property(nonatomic) NSTimer *keepAliveTimer;
+@property(nonatomic) NSURL *url;
+@property(nonatomic) SRWebSocket *socket;
+@property(nonatomic) NSMutableDictionary *transDict;
+@property(nonatomic) NSMutableDictionary *handleDict;
+@property(nonatomic) NSMutableDictionary *feedDict;
 @end
 
-@implementation WebSocketChannel {
-    NSURL *_url;
-    SRWebSocket *_socket;
-    NSNumber *sessionId;
-    NSTimer *keepAliveTimer;
-    NSMutableDictionary *transDict;
-    NSMutableDictionary *handleDict;
-    NSMutableDictionary *feedDict;
-}
+@implementation WebSocketChannel
 
 @synthesize state = _state;
 
@@ -35,15 +33,20 @@ static NSString const *kJanusData = @"data";
         NSArray<NSString *> *protocols = [NSArray arrayWithObject:@"janus-protocol"];
         _socket = [[SRWebSocket alloc] initWithURL:url protocols:(NSArray *)protocols];
         _socket.delegate = self;
-        keepAliveTimer = [NSTimer scheduledTimerWithTimeInterval:30.0 target:self selector:@selector(keepAlive) userInfo:nil repeats:YES];
-        transDict = [NSMutableDictionary dictionary];
-        handleDict = [NSMutableDictionary dictionary];
-        feedDict = [NSMutableDictionary dictionary];
+        _keepAliveTimer = [NSTimer scheduledTimerWithTimeInterval:30.0 target:self selector:@selector(keepAlive) userInfo:nil repeats:YES];
+        _transDict = [NSMutableDictionary dictionary];
+        _handleDict = [NSMutableDictionary dictionary];
+        _feedDict = [NSMutableDictionary dictionary];
 
         RTCLog(@"Opening WebSocket.");
         [_socket open];
     }
     return self;
+}
+
+- (void)stopTimer {
+    [_keepAliveTimer invalidate];
+    _keepAliveTimer = nil;
 }
 
 - (void)dealloc {
@@ -87,22 +90,22 @@ static NSString const *kJanusData = @"data";
     if ([janus isEqualToString:@"success"]) {
         NSString *transaction = wssMessage[@"transaction"];
 
-        JanusTransaction *jt = transDict[transaction];
+        JanusTransaction *jt = _transDict[transaction];
         if (jt.success != nil) {
             jt.success(wssMessage);
         }
-        [transDict removeObjectForKey:transaction];
+        [_transDict removeObjectForKey:transaction];
     } else if ([janus isEqualToString:@"error"]) {
         NSString *transaction = wssMessage[@"transaction"];
-        JanusTransaction *jt = transDict[transaction];
+        JanusTransaction *jt = _transDict[transaction];
         if (jt.error != nil) {
             jt.error(wssMessage);
         }
-        [transDict removeObjectForKey:transaction];
+        [_transDict removeObjectForKey:transaction];
     } else if ([janus isEqualToString:@"ack"]) {
         NSLog(@"Just an ack");
     } else {
-        JanusHandle *handle = handleDict[wssMessage[@"sender"]];
+        JanusHandle *handle = _handleDict[wssMessage[@"sender"]];
         if (handle == nil) {
             NSLog(@"missing handle?");
         } else if ([janus isEqualToString:@"event"]) {
@@ -121,7 +124,7 @@ static NSString const *kJanusData = @"data";
             }
 
             if (plugin[@"leaving"] != nil) {
-                JanusHandle *jHandle = feedDict[plugin[@"leaving"]];
+                JanusHandle *jHandle = _feedDict[plugin[@"leaving"]];
                 if (jHandle) {
                     jHandle.onLeaving(jHandle);
                 }
@@ -150,7 +153,7 @@ static NSString const *kJanusData = @"data";
            (long)code, reason, wasClean);
     NSParameterAssert(_state != kARDSignalingChannelStateError);
     self.state = kARDSignalingChannelStateClosed;
-    [keepAliveTimer invalidate];
+    [_keepAliveTimer invalidate];
 }
 
 #pragma mark - Private
@@ -171,14 +174,16 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 
     JanusTransaction *jt = [[JanusTransaction alloc] init];
     jt.tid = transaction;
+    weakify(self);
     jt.success = ^(NSDictionary *data) {
-        sessionId = data[@"data"][@"id"];
-        [keepAliveTimer fire];
+        strongify(self);
+        self.sessionId = data[@"data"][@"id"];
+        [self.keepAliveTimer fire];
         [self publisherCreateHandle];
     };
     jt.error = ^(NSDictionary *data) {
     };
-    transDict[transaction] = jt;
+    _transDict[transaction] = jt;
 
     NSDictionary *createMessage = @{
         @"janus": @"create",
@@ -191,28 +196,32 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
     NSString *transaction = [self randomStringWithLength:12];
     JanusTransaction *jt = [[JanusTransaction alloc] init];
     jt.tid = transaction;
+    weakify(self);
     jt.success = ^(NSDictionary *data){
+        strongify(self);
         JanusHandle *handle = [[JanusHandle alloc] init];
         handle.handleId = data[@"data"][@"id"];
         handle.onJoined = ^(JanusHandle *handle) {
+            strongify(self);
             [self.delegate onPublisherJoined: handle.handleId];
         };
         handle.onRemoteJsep = ^(JanusHandle *handle, NSDictionary *jsep) {
+            strongify(self);
             [self.delegate onPublisherRemoteJsep:handle.handleId dict:jsep];
         };
 
-        handleDict[handle.handleId] = handle;
+        self.handleDict[handle.handleId] = handle;
         [self publisherJoinRoom: handle];
     };
     jt.error = ^(NSDictionary *data) {
     };
-    transDict[transaction] = jt;
+    _transDict[transaction] = jt;
 
     NSDictionary *attachMessage = @{
                                     @"janus": @"attach",
                                     @"plugin": @"janus.plugin.videoroom",
                                     @"transaction": transaction,
-                                    @"session_id": sessionId,
+                                    @"session_id": _sessionId,
                                     };
     [_socket send:[self jsonMessage:attachMessage]];
 }
@@ -232,7 +241,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
     NSDictionary *joinMessage = @{
                                   @"janus": @"message",
                                   @"transaction": transaction,
-                                  @"session_id":sessionId,
+                                  @"session_id":_sessionId,
                                   @"handle_id":handle.handleId,
                                   @"body": body
                                   };
@@ -260,7 +269,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
                                    @"body": publish,
                                    @"jsep": jsep,
                                    @"transaction": transaction,
-                                   @"session_id": sessionId,
+                                   @"session_id": _sessionId,
                                    @"handle_id": handleId,
                                    };
 
@@ -279,7 +288,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
                                      @"janus": @"trickle",
                                      @"candidate": candidateDict,
                                      @"transaction": [self randomStringWithLength:12],
-                                     @"session_id":sessionId,
+                                     @"session_id":_sessionId,
                                      @"handle_id":handleId,
                                      };
 
@@ -295,7 +304,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
                                      @"janus": @"trickle",
                                      @"candidate": candidateDict,
                                      @"transaction": [self randomStringWithLength:12],
-                                     @"session_id":sessionId,
+                                     @"session_id":_sessionId,
                                      @"handle_id":handleId,
                                      };
 
@@ -307,32 +316,36 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
     NSString *transaction = [self randomStringWithLength:12];
     JanusTransaction *jt = [[JanusTransaction alloc] init];
     jt.tid = transaction;
+    weakify(self);
     jt.success = ^(NSDictionary *data){
+        strongify(self);
         JanusHandle *handle = [[JanusHandle alloc] init];
         handle.handleId = data[@"data"][@"id"];
         handle.feedId = feed;
         handle.display = display;
 
         handle.onRemoteJsep = ^(JanusHandle *handle, NSDictionary *jsep) {
+            strongify(self);
             [self.delegate subscriberHandleRemoteJsep:handle.handleId dict:jsep];
         };
 
         handle.onLeaving = ^(JanusHandle *handle) {
+            strongify(self);
             [self subscriberOnLeaving:handle];
         };
-        handleDict[handle.handleId] = handle;
-        feedDict[handle.feedId] = handle;
+        self.handleDict[handle.handleId] = handle;
+        self.feedDict[handle.feedId] = handle;
         [self subscriberJoinRoom: handle];
     };
     jt.error = ^(NSDictionary *data) {
     };
-    transDict[transaction] = jt;
+    self.transDict[transaction] = jt;
 
     NSDictionary *attachMessage = @{
                                     @"janus": @"attach",
                                     @"plugin": @"janus.plugin.videoroom",
                                     @"transaction": transaction,
-                                    @"session_id": sessionId,
+                                    @"session_id": _sessionId,
                                     };
     [_socket send:[self jsonMessage:attachMessage]];
 }
@@ -341,7 +354,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 - (void)subscriberJoinRoom:(JanusHandle*)handle {
 
     NSString *transaction = [self randomStringWithLength:12];
-    transDict[transaction] = @"subscriber";
+    _transDict[transaction] = @"subscriber";
 
     NSDictionary *body = @{
                            @"request": @"join",
@@ -353,7 +366,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
     NSDictionary *message = @{
                                   @"janus": @"message",
                                   @"transaction": transaction,
-                                  @"session_id": sessionId,
+                                  @"session_id": _sessionId,
                                   @"handle_id": handle.handleId,
                                   @"body": body,
                                   };
@@ -380,7 +393,7 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
                                    @"body": body,
                                    @"jsep": jsep,
                                    @"transaction": transaction,
-                                   @"session_id": sessionId,
+                                   @"session_id": _sessionId,
                                    @"handle_id": handleId,
                                    };
 
@@ -392,19 +405,21 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 
     JanusTransaction *jt = [[JanusTransaction alloc] init];
     jt.tid = transaction;
+    weakify(self);
     jt.success = ^(NSDictionary *data) {
+        strongify(self);
         [self.delegate onLeaving:handle.handleId];
-        [handleDict removeObjectForKey:handle.handleId];
-        [feedDict removeObjectForKey:handle.feedId];
+        [self.handleDict removeObjectForKey:handle.handleId];
+        [self.feedDict removeObjectForKey:handle.feedId];
     };
     jt.error = ^(NSDictionary *data) {
     };
-    transDict[transaction] = jt;
+    _transDict[transaction] = jt;
 
     NSDictionary *message = @{
                                    @"janus": @"detach",
                                    @"transaction": transaction,
-                                   @"session_id": sessionId,
+                                   @"session_id": _sessionId,
                                    @"handle_id": handle.handleId,
                                    };
 
@@ -412,9 +427,13 @@ NSString *letters = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 }
 
 - (void)keepAlive {
+    if (!_sessionId) {
+        NSLog(@"Socket not connected. Check network connection");
+        return;
+    }
     NSDictionary *dict = @{
                            @"janus": @"keepalive",
-                           @"session_id": sessionId,
+                           @"session_id": _sessionId,
                            @"transaction": [self randomStringWithLength:12],
                            };
     [_socket send:[self jsonMessage:dict]];

@@ -20,18 +20,24 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 
 @interface ViewController ()
 {
-    NSMutableDictionary *peerConnectionDict; //Careful, race condition can happen
-    RTCPeerConnection *publisherPeerConnection;
-    RTCVideoTrack *localTrack;
-    RTCAudioTrack *localAudioTrack;
+    
 }
+@property(nonatomic, strong) NSMutableDictionary *peerConnectionDict; //Careful, race condition can happen
+@property(nonatomic, strong) RTCPeerConnection *publisherPeerConnection;
+@property(nonatomic, strong) RTCVideoTrack *localTrack;
+@property(nonatomic, strong) RTCAudioTrack *localAudioTrack;
 @property(nonatomic, strong) WebSocketChannel *websocket;
 @property(nonatomic, strong) RTCPeerConnectionFactory *factory;
 @property(nonatomic, strong) RTCCameraPreviewView *localView;
-@property(nonatomic, strong) UIView *remoteView;
+@property(nonatomic, weak) UIView *remoteView; //Store weak reference just to layout
 @end
 
 @implementation ViewController
+
+- (void)dealloc {
+    [self stopAll];
+    [self.websocket stopTimer];
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -43,10 +49,10 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
     self.websocket = [[WebSocketChannel alloc] initWithURL: url];
     self.websocket.delegate = self;
 
-    peerConnectionDict = [NSMutableDictionary dictionary];
+    _peerConnectionDict = [NSMutableDictionary dictionary];
     _factory = [[RTCPeerConnectionFactory alloc] init];
-    localTrack = [self createLocalVideoTrack];
-    localAudioTrack = [self createLocalAudioTrack];
+    _localTrack = [self createLocalVideoTrack];
+    _localAudioTrack = [self createLocalAudioTrack];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -69,9 +75,9 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 }
 
 - (void)createPublisherPeerConnection {
-    publisherPeerConnection = [self createPeerConnection];
-    [self createAudioSender:publisherPeerConnection];
-    [self createVideoSender:publisherPeerConnection];
+    _publisherPeerConnection = [self createPeerConnection];
+    [self createAudioSender:_publisherPeerConnection];
+    [self createVideoSender:_publisherPeerConnection];
 }
 
 - (RTCMediaConstraints *)defaultPeerConnectionConstraints {
@@ -107,16 +113,17 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 - (void)offerPeerConnection: (NSNumber*) handleId {
     [self createPublisherPeerConnection];
     JanusConnection *jc = [[JanusConnection alloc] init];
-    jc.connection = publisherPeerConnection;
+    jc.connection = _publisherPeerConnection;
     jc.handleId = handleId;
-    peerConnectionDict[handleId] = jc;
+    _peerConnectionDict[handleId] = jc;
 
     weakify(self);
-    [publisherPeerConnection offerForConstraints:[self defaultOfferConstraints]
+    [_publisherPeerConnection offerForConstraints:[self defaultOfferConstraints]
                        completionHandler:^(RTCSessionDescription *sdp,
                                            NSError *error) {
                            strongify(self);
-                           [publisherPeerConnection setLocalDescription:sdp completionHandler:^(NSError * _Nullable error) {
+                           [self.publisherPeerConnection setLocalDescription:sdp completionHandler:^(NSError * _Nullable error) {
+                               strongify(self);
                                [self.websocket publisherCreateOffer: handleId sdp:sdp];
                            }];
                        }];
@@ -151,8 +158,8 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 
 - (RTCRtpSender *)createAudioSender:(RTCPeerConnection *)peerConnection {
     RTCRtpSender *sender = [peerConnection senderWithKind:kRTCMediaStreamTrackKindAudio streamId:kARDMediaStreamId];
-    if (localAudioTrack) {
-        sender.track = localAudioTrack;
+    if (self.localAudioTrack) {
+        sender.track = self.localAudioTrack;
     }
     return sender;
 }
@@ -172,8 +179,8 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 - (RTCRtpSender *)createVideoSender:(RTCPeerConnection *)peerConnection {
     RTCRtpSender *sender = [peerConnection senderWithKind:kRTCMediaStreamTrackKindVideo
                                                  streamId:kARDMediaStreamId];
-    if (localTrack) {
-        sender.track = localTrack;
+    if (self.localTrack) {
+        sender.track = self.localTrack;
     }
 
     return sender;
@@ -204,7 +211,7 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
     NSLog(@"=========didAddStream");
     JanusConnection *janusConnection;
 
-    for (JanusConnection *jc in peerConnectionDict.allValues) {
+    for (JanusConnection *jc in self.peerConnectionDict.allValues) {
         if (peerConnection == jc.connection) {
             janusConnection = jc;
             break;
@@ -240,7 +247,7 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
     NSLog(@"=========didGenerateIceCandidate==%@", candidate.sdp);
 
     NSNumber *handleId;
-    for (JanusConnection *jc in peerConnectionDict.allValues) {
+    for (JanusConnection *jc in self.peerConnectionDict.allValues) {
         if (peerConnection == jc.connection) {
             handleId = jc.handleId;
             break;
@@ -277,9 +284,10 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 }
 
 - (void)onPublisherRemoteJsep:(NSNumber *)handleId dict:(NSDictionary *)jsep {
-    JanusConnection *jc = peerConnectionDict[handleId];
+    JanusConnection *jc = self.peerConnectionDict[handleId];
     RTCSessionDescription *answerDescription = [RTCSessionDescription descriptionFromJSONDictionary:jsep];
     [jc.connection setRemoteDescription:answerDescription completionHandler:^(NSError * _Nullable error) {
+        //Do nothing here. After RTCpeerConnection get enough information: Ice candidate and offer/answer it will start establish the peer connection (send test packet..)
     }];
 }
 
@@ -289,7 +297,7 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
     JanusConnection *jc = [[JanusConnection alloc] init];
     jc.connection = peerConnection;
     jc.handleId = handleId;
-    peerConnectionDict[handleId] = jc;
+    self.peerConnectionDict[handleId] = jc;
 
     RTCSessionDescription *answerDescription = [RTCSessionDescription descriptionFromJSONDictionary:jsep];
     [peerConnection setRemoteDescription:answerDescription completionHandler:^(NSError * _Nullable error) {
@@ -300,7 +308,9 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
                                            };
     RTCMediaConstraints* constraints = [[RTCMediaConstraints alloc] initWithMandatoryConstraints:mandatoryConstraints optionalConstraints:nil];
 
+    weakify(self);
     [peerConnection answerForConstraints:constraints completionHandler:^(RTCSessionDescription * _Nullable sdp, NSError * _Nullable error) {
+        strongify(self);
         [peerConnection setLocalDescription:sdp completionHandler:^(NSError * _Nullable error) {
         }];
         [self.websocket subscriberCreateAnswer:handleId sdp:sdp];
@@ -309,7 +319,7 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
 }
 
 - (void)onLeaving:(NSNumber *)handleId {
-    JanusConnection *jc = peerConnectionDict[handleId];
+    JanusConnection *jc = self.peerConnectionDict[handleId];
     [jc.connection close];
     jc.connection = nil;
     RTCVideoTrack *videoTrack = jc.videoTrack;
@@ -318,7 +328,41 @@ static NSString * const kARDVideoTrackId = @"ARDAMSv0";
     [jc.videoView renderFrame:nil];
     [jc.videoView removeFromSuperview];
 
-    [peerConnectionDict removeObjectForKey:handleId];
+    [self.peerConnectionDict removeObjectForKey:handleId];
+}
+
+- (void)destroyRemoteConnections {
+    for (NSNumber *handleId in self.peerConnectionDict.allKeys) {
+        JanusConnection *jc = self.peerConnectionDict[handleId];
+        if (jc.connection != self.publisherPeerConnection) {
+            [jc.connection close];
+            [jc.videoTrack removeRenderer: jc.videoView];
+            [jc.videoView renderFrame:nil];
+            [jc.videoView removeFromSuperview];
+            [self.peerConnectionDict removeObjectForKey:handleId];
+        }
+    }
+}
+
+- (void)stopAll {
+    [self destroyRemoteConnections];
+    
+    //Note: Don't know why there's weird crash without set nil WebRTC objects reference
+    //It maybe some magic c++ stuff that I don't understand.
+    //It also crash in this: https://github.com/bigbangvn/AppRTCMobile-iOS, If eg. comment out line 308 (_localVideoTrack = nil;) in
+    //ARDAppClient.m
+    //Someone also get this similar crash: https://github.com/bigbangvn/Licode-ErizoClientIOS
+    
+    [_localView.captureSession stopRunning];
+    _localView.captureSession = nil;
+    _localView = nil;
+    
+    [self.publisherPeerConnection close];
+    self.publisherPeerConnection = nil; //Crash without this!??
+    [self.peerConnectionDict removeAllObjects]; //Also to clear reference to peerConnection
+    
+    self.localTrack = nil;      //Crash without this!??
+    self.localAudioTrack = nil; //Crash without this!??
 }
 
 @end
